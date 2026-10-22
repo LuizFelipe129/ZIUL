@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ziul — Gerenciador de Tarefas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header__inner">
+      <div class="header__brand">
+        <span class="header__logo" aria-hidden="true">✦</span>
+        <h1 class="header__title">Ziul</h1>
+      </div>
+      <p class="header__subtitle">Organize. Execute. Conquiste.</p>
+    </div>
+
+    <!-- Contadores de status -->
+    <div class="stats" role="status" aria-live="polite">
+      <div class="stats__item">
+        <span class="stats__number" id="stat-total">0</span>
+        <span class="stats__label">Total</span>
+      </div>
+      <div class="stats__divider" aria-hidden="true"></div>
+      <div class="stats__item">
+        <span class="stats__number stats__number--pending" id="stat-pending">0</span>
+        <span class="stats__label">Pendentes</span>
+      </div>
+      <div class="stats__divider" aria-hidden="true"></div>
+      <div class="stats__item">
+        <span class="stats__number stats__number--done" id="stat-done">0</span>
+        <span class="stats__label">Concluídas</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <!-- Formulário de nova tarefa -->
+    <section class="form-section" aria-label="Adicionar nova tarefa">
+      <form class="task-form" id="task-form" novalidate>
+        <div class="task-form__row task-form__row--main">
+          <div class="input-group">
+            <label class="input-group__label" for="task-title">Título da tarefa</label>
+            <input
+              class="input-group__field"
+              type="text"
+              id="task-title"
+              name="task-title"
+              placeholder="Ex: Revisar o pull request do design system..."
+              autocomplete="off"
+              maxlength="120"
+            />
+            <span class="input-group__error" id="title-error" role="alert" aria-live="assertive"></span>
+          </div>
+        </div>
+
+        <div class="task-form__row task-form__row--meta">
+          <div class="input-group input-group--half">
+            <label class="input-group__label" for="task-desc">Descrição <span class="optional">(opcional)</span></label>
+            <input
+              class="input-group__field"
+              type="text"
+              id="task-desc"
+              name="task-desc"
+              placeholder="Adicione detalhes..."
+              autocomplete="off"
+              maxlength="200"
+            />
+          </div>
+
+          <div class="input-group input-group--quarter">
+            <label class="input-group__label" for="task-priority">Prioridade</label>
+            <div class="select-wrapper">
+              <select class="input-group__field input-group__field--select" id="task-priority" name="task-priority">
+                <option value="high">🔴 Alta</option>
+                <option value="medium" selected>🟡 Média</option>
+                <option value="low">🟢 Baixa</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="input-group input-group--quarter">
+            <label class="input-group__label" for="task-due">Prazo <span class="optional">(opcional)</span></label>
+            <input
+              class="input-group__field"
+              type="date"
+              id="task-due"
+              name="task-due"
+            />
+          </div>
+        </div>
+
+        <button class="btn btn--primary" type="submit" id="submit-btn">
+          <span class="btn__icon" aria-hidden="true">+</span>
+          <span>Adicionar Tarefa</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Barra de filtros -->
+    <section class="filters-section" aria-label="Filtrar tarefas">
+      <div class="filters" role="group" aria-label="Filtros de status">
+        <button class="filter-btn filter-btn--active" data-filter="all">Todas</button>
+        <button class="filter-btn" data-filter="pending">Pendentes</button>
+        <button class="filter-btn" data-filter="done">Concluídas</button>
+      </div>
+
+      <div class="sort-wrapper">
+        <label class="input-group__label" for="sort-select">Ordenar por</label>
+        <div class="select-wrapper select-wrapper--sm">
+          <select class="input-group__field input-group__field--select input-group__field--sm" id="sort-select">
+            <option value="date-desc">Mais recentes</option>
+            <option value="date-asc">Mais antigas</option>
+            <option value="priority">Prioridade</option>
+            <option value="alpha">A → Z</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lista de tarefas -->
+    <section class="tasks-section" aria-label="Lista de tarefas">
+      <ul class="task-list" id="task-list" role="list"></ul>
+
+      <!-- Estado vazio -->
+      <div class="empty-state" id="empty-state" hidden>
+        <div class="empty-state__icon" aria-hidden="true">◎</div>
+        <p class="empty-state__title">Nenhuma tarefa aqui</p>
+        <p class="empty-state__text">Adicione sua primeira tarefa usando o formulário acima.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Template de card de tarefa (clonado via JS) -->
+  <template id="task-card-template">
+    <li class="task-card" role="listitem">
+      <div class="task-card__priority-bar" aria-hidden="true"></div>
+      <div class="task-card__body">
+        <div class="task-card__top">
+          <button class="task-card__check" aria-label="Marcar como concluída" type="button">
+            <span class="task-card__check-icon" aria-hidden="true"></span>
+          </button>
+          <div class="task-card__content">
+            <h3 class="task-card__title"></h3>
+            <p class="task-card__desc"></p>
+          </div>
+          <div class="task-card__actions">
+            <span class="task-card__badge"></span>
+            <button class="task-card__delete" aria-label="Excluir tarefa" type="button" title="Excluir">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+        </div>
+        <div class="task-card__footer">
+          <span class="task-card__date"></span>
+          <span class="task-card__due"></span>
+        </div>
+      </div>
+    </li>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
