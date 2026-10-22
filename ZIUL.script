@@ -1,0 +1,211 @@
+/* =========================================================
+   ZIUL — script.js  (reescrito)
+   ========================================================= */
+// ─── 1. ESTADO ────────────────────────────────────────────
+let tasks = JSON.parse(localStorage.getItem('ziul-tasks')) || [];
+let currentFilter = 'all';
+let currentSort   = 'date-desc';
+
+// ─── 2. SELETORES ─────────────────────────────────────────
+const form       = document.querySelector('#task-form');
+const inputTitle = document.querySelector('#task-title');
+const inputDesc  = document.querySelector('#task-desc');
+const inputPrio  = document.querySelector('#task-priority');
+const inputDue   = document.querySelector('#task-due');
+const titleError = document.querySelector('#title-error');
+const taskList   = document.querySelector('#task-list');
+const emptyState = document.querySelector('#empty-state');
+const filterBtns = document.querySelectorAll('.filter-btn');
+const sortSelect = document.querySelector('#sort-select');
+const template   = document.querySelector('#task-card-template');
+
+// Contadores
+const statTotal   = document.querySelector('#stat-total');
+const statPending = document.querySelector('#stat-pending');
+const statDone    = document.querySelector('#stat-done');
+
+// ─── 3. PERSISTÊNCIA ──────────────────────────────────────
+function save() {
+  localStorage.setItem('ziul-tasks', JSON.stringify(tasks));
+}
+
+// ─── 4. CRUD ──────────────────────────────────────────────
+function addTask({ title, desc, priority, due }) {
+  tasks.push({
+    id:        Date.now(),
+    title:     title.trim(),
+    desc:      desc.trim(),
+    priority:  priority,
+    due:       due,
+    done:      false,
+    createdAt: Date.now(),
+  });
+  save();
+  render();
+}
+
+function toggleTask(id) {
+  tasks = tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
+  save();
+  render();
+}
+
+function deleteTask(id) {
+  // Animação de saída antes de remover
+  const card = taskList.querySelector(`[data-id="${id}"]`);
+  if (card) {
+    card.classList.add('task-card--removing');
+    card.addEventListener('animationend', () => {
+      tasks = tasks.filter(t => t.id !== id);
+      save();
+      render();
+    }, { once: true });
+  } else {
+    tasks = tasks.filter(t => t.id !== id);
+    save();
+    render();
+  }
+}
+
+// ─── 5. FILTRO + ORDENAÇÃO ────────────────────────────────
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+
+function getVisibleTasks() {
+  // Filtro
+  let list = tasks.filter(t => {
+    if (currentFilter === 'pending') return !t.done;
+    if (currentFilter === 'done')    return t.done;
+    return true;
+  });
+
+  // Ordenação
+  list = [...list].sort((a, b) => {
+    switch (currentSort) {
+      case 'date-asc':  return a.createdAt - b.createdAt;
+      case 'priority':  return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+      case 'alpha':     return a.title.localeCompare(b.title, 'pt-BR');
+      case 'date-desc':
+      default:          return b.createdAt - a.createdAt;
+    }
+  });
+
+  return list;
+}
+
+// ─── 6. HELPERS DE EXIBIÇÃO ───────────────────────────────
+const PRIORITY_LABEL = { high: 'Alta', medium: 'Média', low: 'Baixa' };
+
+function formatCreatedAt(ts) {
+  return new Date(ts).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+}
+
+function formatDue(dateStr) {
+  if (!dateStr) return '';
+  // dateStr é "YYYY-MM-DD"; criar sem conversão de fuso
+  const [y, m, d] = dateStr.split('-');
+  const date = new Date(+y, +m - 1, +d);
+  return `Prazo: ${date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`;
+}
+
+// ─── 7. RENDERIZAÇÃO ──────────────────────────────────────
+function render() {
+  const visible = getVisibleTasks();
+
+  // Atualiza contadores
+  statTotal.textContent   = tasks.length;
+  statPending.textContent = tasks.filter(t => !t.done).length;
+  statDone.textContent    = tasks.filter(t =>  t.done).length;
+
+  // Estado vazio
+  emptyState.hidden = visible.length > 0;
+
+  // Remove apenas os cards existentes (não o template)
+  taskList.innerHTML = '';
+
+  visible.forEach(task => {
+    // Clona o <template>
+    const clone = template.content.cloneNode(true);
+    const card  = clone.querySelector('.task-card');
+
+    // Atributos de dados
+    card.dataset.id       = task.id;
+    card.dataset.priority = task.priority;
+    if (task.done) card.classList.add('task-card--done');
+
+    // Conteúdo textual
+    card.querySelector('.task-card__title').textContent = task.title;
+
+    const descEl = card.querySelector('.task-card__desc');
+    if (task.desc) {
+      descEl.textContent = task.desc;
+    } else {
+      descEl.remove();
+    }
+    card.querySelector('.task-card__badge').textContent = PRIORITY_LABEL[task.priority];
+    card.querySelector('.task-card__date').textContent  = `Criada em ${formatCreatedAt(task.createdAt)}`;
+
+    const dueEl = card.querySelector('.task-card__due');
+    dueEl.textContent = formatDue(task.due);
+
+    // Ícone do check quando concluída
+    const checkIcon = card.querySelector('.task-card__check-icon');
+    if (task.done) checkIcon.textContent = '✓';
+    // Eventos
+    card.querySelector('.task-card__check').addEventListener('click', () => toggleTask(task.id));
+    card.querySelector('.task-card__delete').addEventListener('click', () => deleteTask(task.id));
+    // Aria-label dinâmico no botão de check
+    const checkBtn = card.querySelector('.task-card__check');
+    checkBtn.setAttribute('aria-label', task.done ? 'Marcar como pendente' : 'Marcar como concluída');
+
+    taskList.appendChild(clone);
+  });
+}
+// ─── 8. VALIDAÇÃO DO FORMULÁRIO ───────────────────────────
+function showError(msg) {
+  titleError.textContent = msg;
+  inputTitle.classList.add('input-group__field--error');
+}
+function clearError() {
+  titleError.textContent = '';
+  inputTitle.classList.remove('input-group__field--error');
+}
+// ─── 9. EVENTOS ───────────────────────────────────────────
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  clearError();
+
+  const title = inputTitle.value.trim();
+  if (!title) {
+    showError('O título da tarefa é obrigatório.');
+    inputTitle.focus();
+    return;
+  }
+  addTask({
+    title,
+    desc:     inputDesc.value,
+    priority: inputPrio.value,
+    due:      inputDue.value,
+  });
+  // Limpar formulário
+  form.reset();
+  inputTitle.focus();
+});
+
+filterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentFilter = btn.dataset.filter;
+    // Atualiza classe ativa
+    filterBtns.forEach(b => b.classList.remove('filter-btn--active'));
+    btn.classList.add('filter-btn--active');
+    render();
+  });
+});
+
+sortSelect.addEventListener('change', () => {
+  currentSort = sortSelect.value;
+  render();
+});
+// ─── 10. INIT ─────────────────────────────────────────────
+render();
